@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng dụng Giải Sudoku 9x9 - Thuật toán Quay lui (Backtracking)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #a8afc0;
+            color: #b0becb;
+        }
+
+        /* Sudoku Grid Styling */
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 1px;
+            background-color: #334155;
+            padding: 3px;
+            border-radius: 12px;
+            border: 3px solid #475569;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        }
+
+        .sudoku-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #1e293b;
+            font-weight: 700;
+            font-size: 1.25rem;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        /* 3x3 Grid Section Borders */
+        .sudoku-cell:nth-child(3n) {
+            border-right: 3px solid #64748b;
+        }
+        .sudoku-cell:nth-child(9n) {
+            border-right: none;
+        }
+        .cell-row-2, .cell-row-5 {
+            border-bottom: 3px solid #64748b;
+        }
+
+        /* Cell State Styles */
+        .sudoku-input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            background: transparent;
+            color: #f8fafc;
+            font-weight: 700;
+            font-size: 1.35rem;
+            outline: none;
+            border-radius: 4px;
+        }
+
+        .sudoku-input:focus {
+            background-color: #334155;
+            box-shadow: inset 0 0 0 2px #3b82f6;
+        }
+
+        .given-cell {
+            color: #38bdf8;
+            font-weight: 800;
+            background-color: #0f172a;
+        }
+
+        .solved-cell {
+            color: #4ade80;
+            background-color: rgba(34, 197, 94, 0.1);
+            animation: pulse-green 0.4s ease-out;
+        }
+
+        .error-cell {
+            background-color: rgba(239, 68, 68, 0.25) !important;
+            color: #fca5a5 !important;
+        }
+
+        .active-solving-cell {
+            background-color: rgba(234, 179, 8, 0.3) !important;
+            color: #fef08a !important;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-3 sm:p-6">
+
+    <header class="max-w-5xl mx-auto w-full mb-6">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-800/80 p-4 rounded-2xl border border-slate-700 backdrop-blur-md">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-blue-500/30">
+                    9x9
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                        Chương Trình Giải Sudoku Tự Động
+                    </h1>
+                    <p class="text-xs sm:text-sm text-slate-400">Ứng dụng thuật toán Quay lui (Backtracking Algorithm)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-900/60 p-2 rounded-xl border border-slate-700/60 text-xs text-slate-300">
+                <i class="fa-solid fa-microchip text-blue-400"></i>
+                <span>Trạng thái: <strong id="statusText" class="text-emerald-400">Sẵn sàng</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-grow">
+        
+        <!-- Left Side: Sudoku Board -->
+        <section class="lg:col-span-7 flex flex-col items-center">
+            <div class="w-full max-w-[480px]">
+                <!-- Sudoku Container -->
+                <div id="sudokuGrid" class="sudoku-grid mb-4">
+                    <!-- 81 Cells generated dynamically via JavaScript -->
+                </div>
+
+                <!-- Fast Info Bar -->
+                <div class="grid grid-cols-3 gap-3 text-center mb-6">
+                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                        <span class="block text-xs text-slate-400 mb-1">Thời gian giải</span>
+                        <span id="timeTaken" class="text-sm sm:text-base font-bold text-amber-400">0.00 ms</span>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                        <span class="block text-xs text-slate-400 mb-1">Số bước duyệt</span>
+                        <span id="stepCount" class="text-sm sm:text-base font-bold text-blue-400">0</span>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                        <span class="block text-xs text-slate-400 mb-1">Số ô ban đầu</span>
+                        <span id="givenCount" class="text-sm sm:text-base font-bold text-emerald-400">0 / 81</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Side: Control Dashboard -->
+        <section class="lg:col-span-5 flex flex-col gap-5">
+            
+            <!-- Controls Box -->
+            <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-4">
+                <h2 class="text-base font-bold text-slate-200 flex items-center gap-2 border-b border-slate-700 pb-3">
+                    <i class="fa-solid fa-sliders text-blue-400"></i> Điều Khiển & Tùy Chọn
+                </h2>
+
+                <!-- Preset Selectors -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-2">Tải Đề Mẫu Chuẩn:</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button onclick="loadPreset('easy')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-xs font-medium rounded-lg transition text-slate-200 border border-slate-600">Dễ</button>
+                        <button onclick="loadPreset('medium')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-xs font-medium rounded-lg transition text-slate-200 border border-slate-600">Trung bình</button>
+                        <button onclick="loadPreset('hard')" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-xs font-medium rounded-lg transition text-slate-200 border border-slate-600">Khó (Bẫy)</button>
+                        <button onclick="loadPreset('unsolvable')" class="px-3 py-2 bg-rose-900/40 hover:bg-rose-900/60 active:scale-95 text-xs font-medium rounded-lg transition text-rose-300 border border-rose-800">Vô nghiệm</button>
+                    </div>
+                </div>
+
+                <!-- Speed / Visual Mode -->
+                <div class="space-y-2 pt-2">
+                    <div class="flex items-center justify-between">
+                        <label for="visualMode" class="text-xs font-semibold text-slate-300 cursor-pointer">Chế độ xem từng bước (Visual Step):</label>
+                        <input type="checkbox" id="visualMode" class="w-4 h-4 accent-blue-600 rounded cursor-pointer">
+                    </div>
+                    <p class="text-[11px] text-slate-400 italic">Tắt để giải tức thì (dưới 5ms), Bật để mô phỏng thuật toán quay lui trực quan.</p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="pt-2 space-y-2">
+                    <button id="btnSolve" onclick="solveSudokuUI()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 active:scale-[0.98] transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> GIẢI SUDOKU
+                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="validateCurrentGrid()" class="py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition border border-slate-600 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-shield-halved text-amber-400"></i> Kiểm tra hợp lệ
+                        </button>
+                        <button onclick="clearGrid()" class="py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs font-bold rounded-xl transition border border-rose-800/60 flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-trash-can"></i> Xóa Hết
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Algorithm Information -->
+            <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2 text-xs text-slate-300">
+                <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-emerald-400"></i> Thuật Toán Quay Lui (Backtracking)
+                </h3>
+                <p class="leading-relaxed text-slate-400">
+                    Chương trình duyệt từng ô trống, thử điền lần lượt các số từ <strong class="text-slate-200">1 đến 9</strong>. Nếu thỏa mãn quy tắc (không trùng hàng, cột, khối 3x3), nó tiếp tục gọi đệ quy giải các ô tiếp theo. Nếu gặp bế tắc, thuật toán sẽ <strong class="text-amber-400">quay lui (reset ô = 0)</strong> để thử giá trị khác.
+                </p>
+                <div class="mt-2 pt-2 border-t border-slate-700 flex justify-between text-[11px] text-slate-400">
+                    <span>Độ phức tạp thời gian: <code class="text-amber-300">O(9^m)</code></span>
+                    <span>Không gian: <code class="text-blue-300">O(m)</code></span>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="max-w-5xl mx-auto w-full text-center py-4 text-xs text-slate-500 border-t border-slate-800 mt-8">
+        Ứng dụng Giải Sudoku Tự Động • Xây dựng bằng Thuật toán Quay lui & HTML5/Tailwind/JS
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 border border-slate-700 text-slate-200 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMessage" class="text-xs sm:text-sm font-medium">Thông báo ở đây</span>
+    </div>
+
+    <script>
+        const SIZE = 9;
+        let isSolving = false;
+        let stepCounter = 0;
+
+        // Preset Test Cases
+        const PRESETS = {
+            easy: [
+                [5, 3, 0, 0, 7, 0, 0, 0, 0],
+                [6, 0, 0, 1, 9, 5, 0, 0, 0],
+                [0, 9, 8, 0, 0, 0, 0, 6, 0],
+                [8, 0, 0, 0, 6, 0, 0, 0, 3],
+                [4, 0, 0, 8, 0, 3, 0, 0, 1],
+                [7, 0, 0, 0, 2, 0, 0, 0, 6],
+                [0, 6, 0, 0, 0, 0, 2, 8, 0],
+                [0, 0, 0, 4, 1, 9, 0, 0, 5],
+                [0, 0, 0, 0, 8, 0, 0, 7, 9]
+            ],
+            medium: [
+                [0, 0, 0, 2, 6, 0, 7, 0, 1],
+                [6, 8, 0, 0, 7, 0, 0, 9, 0],
+                [1, 9, 0, 0, 0, 4, 5, 0, 0],
+                [8, 2, 0, 1, 0, 0, 0, 4, 0],
+                [0, 0, 4, 6, 0, 2, 9, 0, 0],
+                [0, 5, 0, 0, 0, 3, 0, 2, 8],
+                [0, 0, 9, 3, 0, 0, 0, 7, 4],
+                [0, 4, 0, 0, 5, 0, 0, 3, 6],
+                [7, 0, 3, 0, 1, 8, 0, 0, 0]
+            ],
+            hard: [
+                [8, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 3, 6, 0, 0, 0, 0, 0],
+                [0, 7, 0, 0, 9, 0, 2, 0, 0],
+                [0, 5, 0, 0, 0, 7, 0, 0, 0],
+                [0, 0, 0, 0, 4, 5, 7, 0, 0],
+                [0, 0, 0, 1, 0, 0, 0, 3, 0],
+                [0, 0, 1, 0, 0, 0, 0, 6, 0],
+                [0, 0, 8, 5, 0, 0, 0, 1, 0],
+                [0, 9, 0, 0, 0, 0, 4, 0, 0]
+            ],
+            unsolvable: [
+                [5, 3, 5, 0, 7, 0, 0, 0, 0], // Duplicate '5' in Row 0
+                [6, 0, 0, 1, 9, 5, 0, 0, 0],
+                [0, 9, 8, 0, 0, 0, 0, 6, 0],
+                [8, 0, 0, 0, 6, 0, 0, 0, 3],
+                [4, 0, 0, 8, 0, 3, 0, 0, 1],
+                [7, 0, 0, 0, 2, 0, 0, 0, 6],
+                [0, 6, 0, 0, 0, 0, 2, 8, 0],
+                [0, 0, 0, 4, 1, 9, 0, 0, 5],
+                [0, 0, 0, 0, 8, 0, 0, 7, 9]
+            ]
+        };
+
+        function initGrid() {
+            const gridContainer = document.getElementById('sudokuGrid');
+            gridContainer.innerHTML = '';
+
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = `sudoku-cell cell-row-${r}`;
+                    cellDiv.id = `cell-container-${r}-${c}`;
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.maxLength = 1;
+                    input.id = `cell-${r}-${c}`;
+                    input.className = 'sudoku-input';
+                    
+                    // Input Validation: Only 1-9 allowed
+                    input.addEventListener('input', (e) => {
+                        const val = e.target.value;
+                        if (!/^[1-9]$/.test(val)) {
+                            e.target.value = '';
+                        }
+                        updateStats();
+                        clearHighlightErrors();
+                    });
+
+                    // Keyboard navigation
+                    input.addEventListener('keydown', (e) => handleArrowNavigation(e, r, c));
+
+                    cellDiv.appendChild(input);
+                    gridContainer.appendChild(cellDiv);
+                }
+            }
+            updateStats();
+        }
+
+        /* Keyboard Arrow Navigation inside Sudoku Matrix */
+        function handleArrowNavigation(e, r, c) {
+            let targetRow = r;
+            let targetCol = c;
+
+            if (e.key === 'ArrowUp') targetRow = Math.max(0, r - 1);
+            else if (e.key === 'ArrowDown') targetRow = Math.min(8, r + 1);
+            else if (e.key === 'ArrowLeft') targetCol = Math.max(0, c - 1);
+            else if (e.key === 'ArrowRight') targetCol = Math.min(8, c + 1);
+            else return;
+
+            const targetInput = document.getElementById(`cell-${targetRow}-${targetCol}`);
+            if (targetInput) targetInput.focus();
+        }
+
+        function getGridValues() {
+            const board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const val = document.getElementById(`cell-${r}-${c}`).value;
+                    board[r][c] = val === '' ? 0 : parseInt(val, 10);
+                }
+            }
+            return board;
+        }
+
+        function setGridValues(board, isInitial = false) {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const input = document.getElementById(`cell-${r}-${c}`);
+                    const val = board[r][c];
+                    
+                    if (val !== 0) {
+                        input.value = val;
+                        if (isInitial) {
+                            input.classList.add('given-cell');
+                            input.readOnly = true;
+                        }
+                    } else {
+                        input.value = '';
+                        input.classList.remove('given-cell', 'solved-cell');
+                        input.readOnly = false;
+                    }
+                }
+            }
+            updateStats();
+        }
+
+        function clearGrid() {
+            if (isSolving) return;
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const input = document.getElementById(`cell-${r}-${c}`);
+                    input.value = '';
+                    input.className = 'sudoku-input';
+                    input.readOnly = false;
+                }
+            }
+            document.getElementById('timeTaken').innerText = '0.00 ms';
+            document.getElementById('stepCount').innerText = '0';
+            document.getElementById('statusText').innerText = 'Đã xóa toàn bộ';
+            document.getElementById('statusText').className = 'text-slate-400';
+            clearHighlightErrors();
+            updateStats();
+            showToast('Đã làm sạch bảng Sudoku!', 'info');
+        }
+
+        function loadPreset(presetKey) {
+            if (isSolving) return;
+            clearGrid();
+            const board = PRESETS[presetKey];
+            setGridValues(board, true);
+            showToast(`Đã tải đề mẫu: ${presetKey.toUpperCase()}`, 'success');
+            document.getElementById('statusText').innerText = `Đã tải đề ${presetKey}`;
+            document.getElementById('statusText').className = 'text-blue-400';
+        }
+
+        function updateStats() {
+            let given = 0;
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const val = document.getElementById(`cell-${r}-${c}`).value;
+                    if (val !== '') given++;
+                }
+            }
+            document.getElementById('givenCount').innerText = `${given} / 81`;
+        }
+
+        function clearHighlightErrors() {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const input = document.getElementById(`cell-${r}-${c}`);
+                    input.classList.remove('error-cell', 'active-solving-cell');
+                }
+            }
+        }
+
+        function isValid(board, row, col, num) {
+            for (let i = 0; i < SIZE; i++) {
+                // Check Row & Column
+                if (board[row][i] === num) return false;
+                if (board[i][col] === num) return false;
+                
+                // Check 3x3 Box
+                const boxRow = 3 * Math.floor(row / 3) + Math.floor(i / 3);
+                const boxCol = 3 * Math.floor(col / 3) + (i % 3);
+                if (board[boxRow][boxCol] === num) return false;
+            }
+            return true;
+        }
+
+        function validateCurrentBoardState(board) {
+            const invalidCells = [];
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const val = board[r][c];
+                    if (val !== 0) {
+                        board[r][c] = 0; // Temporarily remove to check conflicts
+                        if (!isValid(board, r, c, val)) {
+                            invalidCells.push({ r, c });
+                        }
+                        board[r][c] = val; // Restore
+                    }
+                }
+            }
+            return invalidCells;
+        }
+
+        function validateCurrentGrid() {
+            clearHighlightErrors();
+            const board = getGridValues();
+            const errors = validateCurrentBoardState(board);
+
+            if (errors.length > 0) {
+                errors.forEach(err => {
+                    document.getElementById(`cell-${err.r}-${err.c}`).classList.add('error-cell');
+                });
+                showToast(`Phát hiện ${errors.length} ô vi phạm quy tắc!`, 'error');
+                document.getElementById('statusText').innerText = 'Dữ liệu không hợp lệ';
+                document.getElementById('statusText').className = 'text-rose-400';
+                return false;
+            } else {
+                showToast('Bảng hiện tại hợp lệ!', 'success');
+                document.getElementById('statusText').innerText = 'Bảng hợp lệ';
+                document.getElementById('statusText').className = 'text-emerald-400';
+                return true;
+            }
+        }
+
+        function solveBacktracking(board) {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) {
+                        for (let num = 1; num <= 9; num++) {
+                            stepCounter++;
+                            if (isValid(board, r, c, num)) {
+                                board[r][c] = num;
+                                if (solveBacktracking(board)) return true;
+                                board[r][c] = 0; // Backtrack
+                            }
+                        }
+                        return false; // No valid number found
+                    }
+                }
+            }
+            return true; // Solved completely
+        }
+
+        /* Visual Animated Backtracking Solver */
+        async function solveBacktrackingVisual(board) {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) {
+                        const input = document.getElementById(`cell-${r}-${c}`);
+                        for (let num = 1; num <= 9; num++) {
+                            stepCounter++;
+                            document.getElementById('stepCount').innerText = stepCounter.toLocaleString();
+
+                            if (isValid(board, r, c, num)) {
+                                board[r][c] = num;
+                                input.value = num;
+                                input.classList.add('active-solving-cell');
+
+                                await new Promise(res => setTimeout(res, 15)); // Delay for visualization
+
+                                if (await solveBacktrackingVisual(board)) {
+                                    input.classList.remove('active-solving-cell');
+                                    input.classList.add('solved-cell');
+                                    return true;
+                                }
+
+                                board[r][c] = 0;
+                                input.value = '';
+                                input.classList.remove('active-solving-cell');
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        async function solveSudokuUI() {
+            if (isSolving) return;
+
+            clearHighlightErrors();
+            const board = getGridValues();
+
+            // Check initial user input validity
+            const errors = validateCurrentBoardState(board);
+            if (errors.length > 0) {
+                errors.forEach(err => {
+                    document.getElementById(`cell-${err.r}-${err.c}`).classList.add('error-cell');
+                });
+                showToast('Không thể giải! Dữ liệu đầu vào bị trùng lặp.', 'error');
+                document.getElementById('statusText').innerText = 'Lỗi dữ liệu đầu vào';
+                document.getElementById('statusText').className = 'text-rose-400';
+                return;
+            }
+
+            // Lock input controls during solve
+            isSolving = true;
+            stepCounter = 0;
+            const btnSolve = document.getElementById('btnSolve');
+            btnSolve.disabled = true;
+            btnSolve.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang giải...`;
+            document.getElementById('statusText').innerText = 'Đang tính toán...';
+            document.getElementById('statusText').className = 'text-amber-400';
+
+            const visualMode = document.getElementById('visualMode').checked;
+            const initialBoard = getGridValues();
+
+            const startTime = performance.now();
+            let success = false;
+
+            if (visualMode) {
+                success = await solveBacktrackingVisual(board);
+            } else {
+                success = solveBacktracking(board);
+            }
+
+            const endTime = performance.now();
+            const timeTakenMs = (endTime - startTime).toFixed(2);
+
+            document.getElementById('timeTaken').innerText = `${timeTakenMs} ms`;
+            document.getElementById('stepCount').innerText = stepCounter.toLocaleString();
+
+            if (success) {
+                if (!visualMode) {
+                    // Update UI for fast solve
+                    for (let r = 0; r < SIZE; r++) {
+                        for (let c = 0; c < SIZE; c++) {
+                            const input = document.getElementById(`cell-${r}-${c}`);
+                            if (initialBoard[r][c] === 0) {
+                                input.value = board[r][c];
+                                input.classList.add('solved-cell');
+                            }
+                        }
+                    }
+                }
+                showToast(`Giải thành công trong ${timeTakenMs} ms!`, 'success');
+                document.getElementById('statusText').innerText = 'ĐÃ GIẢI THÀNH CÔNG';
+                document.getElementById('statusText').className = 'text-emerald-400';
+            } else {
+                showToast('Không tìm được lời giải cho bảng này!', 'error');
+                document.getElementById('statusText').innerText = 'VÔ NGHIỆM (No Solution)';
+                document.getElementById('statusText').className = 'text-rose-400';
+            }
+
+            // Unlock UI
+            isSolving = false;
+            btnSolve.disabled = false;
+            btnSolve.innerHTML = `<i class="fa-solid fa-bolt"></i> GIẢI SUDOKU`;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+
+            if (type === 'success') {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-lg';
+            } else if (type === 'error') {
+                toastIcon.className = 'fa-solid fa-circle-xmark text-rose-400 text-lg';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-info text-blue-400 text-lg';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Initialize application on load
+        window.onload = function() {
+            initGrid();
+            loadPreset('easy'); // Default starting preset
+        };
+    </script>
+</body>
+</html>
